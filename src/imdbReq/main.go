@@ -3,17 +3,17 @@ package imdbReq
 // TODO: use pointers instead raw copy
 
 import (
-	"fmt"
     "encoding/json"
 	"net/http"
     "net/url"
 	"io/ioutil"
+    "fmt"
 )
 
 type Search struct {
     Poster string
     Title string
-    Year int `json:",string"`
+    Year string // not neccessary a number may be 2008-2012 ...
     ImdbID string
     Type string
 }
@@ -50,6 +50,7 @@ func sendReqInternal(url string) []byte {
 	body, err := ioutil.ReadAll(res.Body)
 
     if err != nil {
+        // TODO: error handling
         panic(err)
     }
 
@@ -61,6 +62,8 @@ func parseSearchReq(data []byte) SearchResp {
     err := json.Unmarshal(data, &sr)
 
     if err != nil {
+        // TODO: error handling
+        fmt.Printf(string(data))
         panic(err)
     }
 
@@ -72,6 +75,7 @@ func parseIdReq(data []byte) IdResp {
     err := json.Unmarshal(data, &ir)
 
     if err != nil {
+        // TODO: error handling
         panic(err)
     }
 

@@ -10,7 +10,11 @@ import (
     "github.com/gorilla/mux"
     "github.com/gorilla/sessions"
     "github.com/gorilla/securecookie"
+
+    "imdbReq"
 )
+
+// TODO: improve error handling
 
 // TODO: meh
 type User struct {
@@ -22,6 +26,7 @@ var store *sessions.CookieStore
 
 var logW *log.Logger
 var logE *log.Logger
+var logD *log.Logger
 
 func init() {
     db["sasha"] = "pass1"
@@ -38,6 +43,7 @@ func init() {
 
     logW = log.New(os.Stdout, "[WARNING]: ", log.Lshortfile)
     logE = log.New(os.Stdout, "[ERROR]: ", log.Lshortfile)
+    logD = log.New(os.Stdout, "[DEBUG]: ", log.Lshortfile)
 }
 
 func main() {
@@ -65,11 +71,29 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
     }
 
     if !checkIfLogin(session) {
-        fmt.Fprintf(w, "U need to authentificate first to access this page\n")
+        http.Error(w, "Login first", http.StatusUnauthorized)
         return
     }
 
-    fmt.Fprintf(w, "User is authenticated\n")
+    values := r.URL.Query()
+
+    title := values.Get("title")
+
+    if title == "" {
+        http.Error(w, "Invalid search request, " +
+                "you must specify \"title\"\n", http.StatusBadRequest)
+        return
+    }
+
+    logD.Printf("Title: %v", title)
+    sr := imdbReq.SendSearchReq(title)
+    res := ""
+
+    for _, t := range sr.Search {
+        res += t.Title + "\n"
+    }
+
+    fmt.Fprintf(w, res)
 }
 
 func handleIdSearch(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +124,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
     _, ok := db[user.Login]
 
     if ok == true {
+        //http conflict
         fmt.Fprintf(w, "Username is already taken\n")
         return
     }
@@ -118,7 +143,7 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 
     if !checkIfLogin(session) {
         // TODO: stop repeating yourself
-        fmt.Fprintf(w, "U need to authentificate first to access this page\n")
+        http.Error(w, "Login first", http.StatusUnauthorized)
         return
     }
 
