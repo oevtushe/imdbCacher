@@ -53,6 +53,7 @@ func main() {
     router.HandleFunc("/logout", handleLogout)
     router.HandleFunc("/register", handleRegister)
     router.HandleFunc("/search", handleSearch)
+    // TODO: is it necessary ?
     router.HandleFunc("/idsearch", handleIdSearch)
     log.Fatal(http.ListenAndServe(":8080", router))
 }
@@ -81,7 +82,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 
     if title == "" {
         http.Error(w, "Invalid search request, " +
-                "you must specify \"title\"\n", http.StatusBadRequest)
+                "you must specify \"title\"", http.StatusBadRequest)
         return
     }
 
@@ -108,15 +109,16 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
     body, err := ioutil.ReadAll(r.Body)
 
     if err != nil {
-        panic(err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
     }
 
     var user User
     err = json.Unmarshal(body, &user)
 
     if err != nil {
-        // TODO: err should be shown
-        fmt.Fprintf(w, "json.Unmarshal failed\n")
+        http.Error(w, "Wrong content format: " + err.Error(),
+                http.StatusBadRequest)
         return
     }
 
@@ -124,8 +126,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
     _, ok := db[user.Login]
 
     if ok == true {
-        //http conflict
-        fmt.Fprintf(w, "Username is already taken\n")
+        http.Error(w, "Username is already taken", http.StatusConflict)
         return
     }
 
@@ -164,7 +165,6 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
     session, err := store.Get(r, "cookie")
 
     if err != nil {
-        // TODO: i use different type of loggers through project ...
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
@@ -172,17 +172,17 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
     body, err := ioutil.ReadAll(r.Body)
 
     if err != nil {
-        // TODO: panic may be not so approptiate
-        logE.Printf(err.Error())
+        http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
 
     var user User
     err = json.Unmarshal(body, &user)
 
+    // TODO: too much repeating
     if err != nil {
-        // TODO: panic may be not so approptiate
-        logE.Printf(err.Error())
+        http.Error(w, "Wrong content format: " + err.Error(),
+                http.StatusBadRequest)
         return
     }
 
