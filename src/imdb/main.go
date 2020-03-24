@@ -1,4 +1,4 @@
-package imdbReq
+package imdb
 
 // TODO: use pointers instead raw copy
 
@@ -7,6 +7,7 @@ import (
 	"net/http"
     "net/url"
 	"io/ioutil"
+    "errors"
 )
 
 const imdbUrlStr = "https://movie-database-imdb-alternative.p.rapidapi.com/"
@@ -17,16 +18,8 @@ type Movie struct {
     ID string `json:"imdbId"`
 }
 
-type searchResp struct {
-    Search []Movie
-    TotalResults int `json:",string"`
-    // TODO: how to convert to bool ?
-    Response string
-}
-
 type MovieExtraInfo struct {
-    Title string
-    Year string
+    Movie
     Genre string
     Actors string
     Country string
@@ -37,30 +30,19 @@ type MovieExtraInfo struct {
     Response string
 }
 
-type MovieExtraInfoResp struct {
+type idResp struct {
     MovieExtraInfo
     Response string
 }
 
-type ImdbResponseError struct {
-    detail string
+type searchResp struct {
+    Search []Movie
+    TotalResults int `json:",string"`
+    Response string
 }
 
-func NewImdbResponseError(detail string) *ImdbResponseError {
-    defaultMsg := "ImdbResponseError"
-    if detail == "" {
-        return &ImdbResponseError{defaultMsg}
-    }
-    return &ImdbResponseError{detail}
-}
-
-func (ire ImdbResponseError) Error() string {
-    return ire.detail
-}
-
-// TODO: i need to read about everything going on in this func
-// TODO: host and key should be read from program parameter
-func sendReqInternal(url string) ([]byte, error) {
+// TODO: host and key should be read as program parameter
+func sendReq(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 
     if err != nil {
@@ -84,7 +66,7 @@ func sendReqInternal(url string) ([]byte, error) {
     }
 
     if res.StatusCode != http.StatusOK {
-        return nil, NewImdbResponseError(string(body))
+        return nil, errors.New(string(body))
     }
 
     return body, err
@@ -99,14 +81,14 @@ func parseSearchReq(data []byte) ([]Movie, error) {
     }
 
     if sr.Response == "False" {
-        return nil, NewImdbResponseError("")
+        return nil, errors.New("Movie not found")
     }
 
     return sr.Search, err
 }
 
-func parseIdReq(data []byte) (*MovieExtraInfoResp, error) {
-    var ir MovieExtraInfoResp
+func parseIdReq(data []byte) (*idResp, error) {
+    var ir idResp
     err := json.Unmarshal(data, &ir)
 
     if err != nil {
@@ -114,7 +96,7 @@ func parseIdReq(data []byte) (*MovieExtraInfoResp, error) {
     }
 
     if ir.Response == "False" {
-        return nil, &ImdbResponseError{}
+        return nil, errors.New("Movie not found")
     }
 
     return &ir, err
@@ -131,8 +113,7 @@ func SendSearchReq(searchStr string) ([]Movie, error) {
     q.Add("r", "json")
     q.Add("s", searchStr)
     imdbUrl.RawQuery = q.Encode()
-    var rawResp []byte
-    rawResp, err = sendReqInternal(imdbUrl.String())
+    rawResp, err := sendReq(imdbUrl.String())
 
     if err != nil {
         return nil, err
@@ -152,15 +133,13 @@ func SendIdReq(id string) (*MovieExtraInfo, error) {
     q.Add("r", "json")
     q.Add("i", id)
     imdbUrl.RawQuery = q.Encode()
-    var rawResp []byte
-    rawResp, err = sendReqInternal(imdbUrl.String())
+    rawResp, err := sendReq(imdbUrl.String())
 
     if err != nil {
         return nil, err
     }
 
-    var res *MovieExtraInfoResp
-    res, err = parseIdReq(rawResp)
+    res, err := parseIdReq(rawResp)
 
     if err != nil {
         return nil, err

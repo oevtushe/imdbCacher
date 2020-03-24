@@ -1,55 +1,53 @@
 package main
 
 import (
-    "net/http"
+    "os"
     "fmt"
     "log"
-    "os"
     "time"
+    "net/http"
     "io/ioutil"
-    "encoding/json"
     "database/sql"
+    "encoding/json"
 
-    _ "github.com/lib/pq"
     "github.com/gorilla/mux"
     "github.com/gorilla/sessions"
     "github.com/gorilla/securecookie"
 
-    "imdbReq"
+    "imdb"
 )
 
-// TODO: improve error handling
 // TODO: handle no internet connection
 // TODO: pass objects by pointers
 
-// TODO: meh
 type User struct {
     Login, Pass string
 }
 
 type Movie struct {
-    Title string
-    Year string // not neccessary a number, can be 2008-2012 ...
+    imdb.Movie
     Info string
-    ID string
 }
+
+// DB entry lifetime in minutes
+const dbDataLifetime = 15
+const cookieName = "cookie"
+// lifetime in minutes
+const cookieLifetime = 15 * 60
 
 var dba *DBAccessor
 var store *sessions.CookieStore
-const cookieName = "cookie"
-// DB entry lifetime in minutes
-const dbDataLifetime = 15
 
 var logW *log.Logger = log.New(os.Stdout, "[WARNING]: ", log.Lshortfile)
 var logE *log.Logger = log.New(os.Stdout, "[ERROR]: ", log.Lshortfile)
 var logD *log.Logger = log.New(os.Stdout, "[DEBUG]: ", log.Lshortfile)
 
 // TODO: bueautify
-func handleUsage(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "Usage: /login, /register, /search, /idsearch\n")
+func usage(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Usage: /logout, /login, /register, /search, /idsearch\n")
 }
 
-func handleSearch(w http.ResponseWriter, r *http.Request) {
+func search(w http.ResponseWriter, r *http.Request) {
     session, err := store.Get(r, cookieName)
 
     if err != nil {
@@ -58,7 +56,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
     }
 
     if !checkIfLogin(session) {
-        http.Error(w, "Login first", http.StatusUnauthorized)
+        loginRequired(w)
         return
     }
 
@@ -71,11 +69,9 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // TODO: session.Values["user"] -> user better to be some constant
     logD.Printf("User (%v) requests (%v)",
             session.Values["user"], title)
-
-    sr, err := imdbReq.SendSearchReq(title)
+    sr, err := imdb.SendSearchReq(title)
 
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -93,7 +89,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
     w.Write(js)
 }
 
-func handleIdSearch(w http.ResponseWriter, r *http.Request) {
+func idSearch(w http.ResponseWriter, r *http.Request) {
     session, err := store.Get(r, cookieName)
 
     if err != nil {
@@ -102,7 +98,7 @@ func handleIdSearch(w http.ResponseWriter, r *http.Request) {
     }
 
     if !checkIfLogin(session) {
-        http.Error(w, "Login first", http.StatusUnauthorized)
+        loginRequired(w)
         return
     }
 
@@ -118,60 +114,13 @@ func handleIdSearch(w http.ResponseWriter, r *http.Request) {
     user, ok := session.Values["user"].(string)
 
     if !ok {
-        logE.Printf("Invalid session cookie\n")
         http.Error(w, "Invalid cookie\n", http.StatusInternalServerError)
         return
     }
 
     logD.Printf("User (%v) requests movie with id (%v)", user, id)
 
-    movie, err := dba.GetMovie(id)
-    var cached bool
-
-    if err != nil {
-        if err != sql.ErrNoRows {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-    } else {
-        cached = true
-    }
-
-    var js []byte
-
-    if !cached {
-        var ir *imdbReq.MovieExtraInfo
-        // TODO: what if no such movie in imdb ?
-        ir, err = imdbReq.SendIdReq(id)
-
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-
-        js, err = json.Marshal(ir)
-
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-
-        movie = &Movie {
-            ID: id,
-            Title: ir.Title,
-            Year: ir.Year,
-            Info: string(js),
-        }
-
-        err = dba.AddMovie(user, *movie, time.Now().Add(time.Minute * dbDataLifetime))
-
-        if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-    }
-
-    js, err = json.Marshal(movie)
+    js, err := getMovie(id, user)
 
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -182,12 +131,7 @@ func handleIdSearch(w http.ResponseWriter, r *http.Request) {
     w.Write(js)
 }
 
-func checkIfLogin(s *sessions.Session) bool {
-    u, ok := s.Values["user"]
-    return ok == true && u != ""
-}
-
-func handleRegister(w http.ResponseWriter, r *http.Request) {
+func register(w http.ResponseWriter, r *http.Request) {
     body, err := ioutil.ReadAll(r.Body)
 
     if err != nil {
@@ -222,8 +166,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Registration successful\n")
 }
 
-// TODO: server track login/logout only by presence of cookie
-func handleLogout(w http.ResponseWriter, r *http.Request) {
+func logout(w http.ResponseWriter, r *http.Request) {
     session, err := store.Get(r, cookieName)
 
     if err != nil {
@@ -233,7 +176,7 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 
     if !checkIfLogin(session) {
         // TODO: stop repeating yourself
-        http.Error(w, "Login first", http.StatusUnauthorized)
+        loginRequired(w)
         return
     }
 
@@ -252,7 +195,7 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Logout successful\n")
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request) {
+func login(w http.ResponseWriter, r *http.Request) {
     session, err := store.Get(r, cookieName)
 
     if err != nil {
@@ -270,7 +213,6 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
     var user User
     err = json.Unmarshal(body, &user)
 
-    // TODO: too much repeating
     if err != nil {
         http.Error(w, "Wrong content format: " + err.Error(),
                 http.StatusBadRequest)
@@ -308,6 +250,57 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Login successful\n")
 }
 
+// load movie from imdb api or local db
+func getMovie(id string, user string) ([]byte, error) {
+    movie, err := dba.GetMovie(id)
+    var cached bool
+
+    if err != nil {
+        if err != sql.ErrNoRows {
+            return nil, err
+        }
+    } else {
+        cached = true
+    }
+
+    var js []byte
+
+    if !cached {
+        // TODO: what if no such movie in imdb ?
+        ir, err := imdb.SendIdReq(id)
+
+        if err != nil {
+            return nil, err
+        }
+
+        js, err = json.Marshal(ir)
+
+        if err != nil {
+            return nil, err
+        }
+
+        movie.Movie = ir.Movie
+        movie.Info = string(js)
+        err = dba.AddMovie(user, *movie,
+                time.Now().Add(time.Minute * dbDataLifetime))
+
+        if err != nil {
+            return nil, err
+        }
+    }
+
+    return json.Marshal(movie)
+}
+
+func checkIfLogin(s *sessions.Session) bool {
+    u, ok := s.Values["user"]
+    return ok == true && u != ""
+}
+
+func loginRequired(w http.ResponseWriter) {
+    http.Error(w, "Login first", http.StatusUnauthorized)
+}
+
 func init() {
     // TODO: do as options for program
     var err error
@@ -317,7 +310,7 @@ func init() {
         logE.Fatal(err)
     }
 
-    dba.CreateTables()
+    dba.CreateTablesIfNeeded()
 
     if err != nil {
         logE.Fatal(err)
@@ -327,19 +320,19 @@ func init() {
     encryptionKeyOne := securecookie.GenerateRandomKey(32)
     store = sessions.NewCookieStore(authKeyOne, encryptionKeyOne)
     store.Options = &sessions.Options {
-        MaxAge: 60 * 15,
+        MaxAge: cookieLifetime,
         HttpOnly: true,
     }
 }
 
+// TODO: port as a parameter
 func main() {
     router := mux.NewRouter()
-    router.HandleFunc("/", handleUsage)
-    router.HandleFunc("/login", handleLogin)
-    router.HandleFunc("/logout", handleLogout)
-    router.HandleFunc("/register", handleRegister)
-    router.HandleFunc("/search", handleSearch)
-    // TODO: is it necessary ?
-    router.HandleFunc("/idsearch", handleIdSearch)
+    router.HandleFunc("/", usage)
+    router.HandleFunc("/login", login)
+    router.HandleFunc("/logout", logout)
+    router.HandleFunc("/register", register)
+    router.HandleFunc("/search", search)
+    router.HandleFunc("/idsearch", idSearch)
     log.Fatal(http.ListenAndServe(":8080", router))
 }

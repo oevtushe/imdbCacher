@@ -67,7 +67,7 @@ func (dba *DBAccessor) GetMovie(id string) (*Movie, error) {
     return &movie, err
 }
 
-func (dba *DBAccessor) CreateTables() error {
+func (dba *DBAccessor) CreateTablesIfNeeded() error {
     // tables are created atomically in scope
     // so we can check only existance of 1 table
     // and be sure others are present also
@@ -136,8 +136,7 @@ func (dba *DBAccessor) AddMovie(login string, movie Movie, expdate time.Time) er
         return err
     }
 
-    var tx *sql.Tx
-    tx, err = dba.db.Begin()
+    tx, err := dba.db.Begin()
 
     if err != nil {
         return err
