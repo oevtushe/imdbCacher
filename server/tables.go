@@ -18,7 +18,7 @@ CREATE TABLE %v (
 const qMovies = `
 CREATE TABLE %v (
     id VARCHAR(10) PRIMARY KEY,
-    title VARCHAR(40) NOT NULL,
+    title TEXT NOT NULL,
     year CHAR(9) NOT NULL,
     info TEXT NOT NULL
 )

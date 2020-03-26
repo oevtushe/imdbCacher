@@ -3,42 +3,31 @@ package imdb
 // TODO: use pointers instead raw copy
 
 import (
-    "encoding/json"
-	"net/http"
-    "net/url"
-	"io/ioutil"
     "errors"
+    "net/url"
+	"net/http"
+	"io/ioutil"
+    "encoding/json"
+
+    "megatask/common"
 )
 
+var xRapidApiKey string
 const imdbUrlStr = "https://movie-database-imdb-alternative.p.rapidapi.com/"
 
-type Movie struct {
-    Title string
-    Year string // not neccessary a number, can be 2008-2012 ...
-    ID string `json:"imdbId"`
-}
-
-type MovieExtraInfo struct {
-    Movie
-    Genre string
-    Actors string
-    Country string
-    ImdbRating string
-    Production string
-    Runtime string
-    Type string
-    Response string
-}
-
 type idResp struct {
-    MovieExtraInfo
+    common.MovieExtraInfo
     Response string
 }
 
 type searchResp struct {
-    Search []Movie
+    Search []common.Movie
     TotalResults int `json:",string"`
     Response string
+}
+
+func InitImdb(key string) {
+    xRapidApiKey = key
 }
 
 // TODO: host and key should be read as program parameter
@@ -50,7 +39,7 @@ func sendReq(url string) ([]byte, error) {
     }
 
 	req.Header.Add("x-rapidapi-host", "movie-database-imdb-alternative.p.rapidapi.com")
-	req.Header.Add("x-rapidapi-key", "3016f5ce2cmsha1f4d33ab43f83fp157df1jsnc54affa5361e")
+	req.Header.Add("x-rapidapi-key", xRapidApiKey)
 
 	res, err := http.DefaultClient.Do(req)
 
@@ -72,7 +61,7 @@ func sendReq(url string) ([]byte, error) {
     return body, err
 }
 
-func parseSearchReq(data []byte) ([]Movie, error) {
+func parseSearchReq(data []byte) ([]common.Movie, error) {
     var sr searchResp
     err := json.Unmarshal(data, &sr)
 
@@ -102,7 +91,7 @@ func parseIdReq(data []byte) (*idResp, error) {
     return &ir, err
 }
 
-func SendSearchReq(searchStr string) ([]Movie, error) {
+func SendSearchReq(searchStr string) ([]common.Movie, error) {
     imdbUrl, err := url.Parse(imdbUrlStr)
 
     if err != nil {
@@ -122,7 +111,7 @@ func SendSearchReq(searchStr string) ([]Movie, error) {
     return parseSearchReq(rawResp)
 }
 
-func SendIdReq(id string) (*MovieExtraInfo, error) {
+func SendIdReq(id string) (*common.MovieExtraInfo, error) {
     imdbUrl, err := url.Parse(imdbUrlStr)
 
     if err != nil {

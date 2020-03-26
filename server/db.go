@@ -10,6 +10,8 @@ import (
     "strconv"
     "database/sql"
     "github.com/lib/pq"
+
+    "megatask/common"
 )
 
 // PUBLIC
@@ -34,9 +36,9 @@ func (dba *DBAccessor) Close() error {
     return dba.db.Close()
 }
 
-func (dba *DBAccessor) GetUser(login string) (*User, error) {
+func (dba *DBAccessor) GetUser(login string) (*common.User, error) {
     const template = `SELECT login, password FROM %v WHERE login = %v`
-    user := &User{}
+    user := &common.User{}
     req, err := logAndGenQuery(template, tbUsers, login)
 
     if err != nil {
@@ -105,14 +107,13 @@ func (dba *DBAccessor) CreateTablesIfNeeded() error {
     err = tx.Commit()
 
     if err != nil {
-        logE.Printf(err.Error())
         return err
     }
 
     return nil
 }
 
-func (dba *DBAccessor) AddUser(user User) error {
+func (dba *DBAccessor) AddUser(user common.User) error {
     const template = `INSERT INTO %v (login, password) VALUES(%v, %v)`
     req, err := logAndGenQuery(template, tbUsers, user.Login, user.Pass)
 

@@ -1,10 +1,11 @@
 package main
 
 import (
-    "os"
     "fmt"
     "log"
     "time"
+    "flag"
+    "strconv"
     "net/http"
     "io/ioutil"
     "database/sql"
@@ -14,18 +15,12 @@ import (
     "github.com/gorilla/sessions"
     "github.com/gorilla/securecookie"
 
-    "imdb"
+    "megatask/imdb"
+    c "megatask/common"
 )
 
-// TODO: handle no internet connection
-// TODO: pass objects by pointers
-
-type User struct {
-    Login, Pass string
-}
-
 type Movie struct {
-    imdb.Movie
+    c.Movie
     Info string
 }
 
@@ -38,12 +33,7 @@ const cookieLifetime = 15 * 60
 var dba *DBAccessor
 var store *sessions.CookieStore
 
-var logW *log.Logger = log.New(os.Stdout, "[WARNING]: ", log.Lshortfile)
-var logE *log.Logger = log.New(os.Stdout, "[ERROR]: ", log.Lshortfile)
-var logD *log.Logger = log.New(os.Stdout, "[DEBUG]: ", log.Lshortfile)
-
-// TODO: bueautify
-func usage(w http.ResponseWriter, r *http.Request) {
+func serverUsage(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(w, "Usage: /logout, /login, /register, /search, /idsearch\n")
 }
 
@@ -69,7 +59,7 @@ func search(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logD.Printf("User (%v) requests (%v)",
+    c.LogD.Printf("User (%v) requests (%v)",
             session.Values["user"], title)
     sr, err := imdb.SendSearchReq(title)
 
@@ -118,7 +108,7 @@ func idSearch(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logD.Printf("User (%v) requests movie with id (%v)", user, id)
+    c.LogD.Printf("User (%v) requests movie with id (%v)", user, id)
 
     js, err := getMovie(id, user)
 
@@ -139,7 +129,7 @@ func register(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    var user User
+    var user c.User
     err = json.Unmarshal(body, &user)
 
     if err != nil {
@@ -191,7 +181,7 @@ func logout(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logD.Printf("User (%v) logged out !\n", user)
+    c.LogD.Printf("User (%v) logged out !\n", user)
     fmt.Fprintf(w, "Logout successful\n")
 }
 
@@ -210,7 +200,7 @@ func login(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    var user User
+    var user c.User
     err = json.Unmarshal(body, &user)
 
     if err != nil {
@@ -219,7 +209,7 @@ func login(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logD.Printf("POST data: %v\n", user)
+    c.LogD.Printf("POST data: %v\n", user)
     userCred, err := dba.GetUser(user.Login)
 
     if err != nil {
@@ -246,7 +236,7 @@ func login(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    logD.Printf("User (%v) logged in !\n", userCred.Login)
+    c.LogD.Printf("User (%v) logged in !\n", userCred.Login)
     fmt.Fprintf(w, "Login successful\n")
 }
 
@@ -263,24 +253,24 @@ func getMovie(id string, user string) ([]byte, error) {
         cached = true
     }
 
-    var js []byte
-
+    c.LogD.Printf("IsMovieCached: %v\n", cached)
     if !cached {
-        // TODO: what if no such movie in imdb ?
         ir, err := imdb.SendIdReq(id)
 
         if err != nil {
             return nil, err
         }
 
-        js, err = json.Marshal(ir)
+        js, err := json.Marshal(ir)
 
         if err != nil {
             return nil, err
         }
 
-        movie.Movie = ir.Movie
-        movie.Info = string(js)
+        movie = &Movie{
+            Movie: ir.Movie,
+            Info: string(js),
+        }
         err = dba.AddMovie(user, *movie,
                 time.Now().Add(time.Minute * dbDataLifetime))
 
@@ -289,7 +279,7 @@ func getMovie(id string, user string) ([]byte, error) {
         }
     }
 
-    return json.Marshal(movie)
+    return []byte(movie.Info), nil
 }
 
 func checkIfLogin(s *sessions.Session) bool {
@@ -302,19 +292,6 @@ func loginRequired(w http.ResponseWriter) {
 }
 
 func init() {
-    // TODO: do as options for program
-    var err error
-    dba, err = NewDBAcessor("postgres", "user=test password=pass1 dbname=test")
-
-    if err != nil {
-        logE.Fatal(err)
-    }
-
-    dba.CreateTablesIfNeeded()
-
-    if err != nil {
-        logE.Fatal(err)
-    }
 
     authKeyOne := securecookie.GenerateRandomKey(64)
     encryptionKeyOne := securecookie.GenerateRandomKey(32)
@@ -325,14 +302,53 @@ func init() {
     }
 }
 
-// TODO: port as a parameter
+func execUsage() {
+    fmt.Printf("go run megatask/server -key <key> -user <name> " +
+            "-password <pass> -dbname <name> [-port <num>]\n")
+    flag.PrintDefaults()
+}
+
+func initDb(name, password, dbname string) {
+    var err error
+    dbInfo := fmt.Sprintf("user=%v password=%v dbname=%v", name, password, dbname)
+    dba, err = NewDBAcessor("postgres", dbInfo)
+
+    if err != nil {
+        c.LogE.Fatal(err)
+    }
+
+    dba.CreateTablesIfNeeded()
+
+    if err != nil {
+        c.LogE.Fatal(err)
+    }
+
+}
+
 func main() {
+    key := flag.String("key", "", "(x-rapidapi-key) IMDB Alternative key")
+    port := flag.Int("port", 8080, "port to start server on")
+    user := flag.String("user", "", "db username")
+    password := flag.String("password", "", "db user password")
+    dbname := flag.String("dbname", "", "db name")
+    flag.Parse()
+
+    if *key != "" && *user != "" && *password != "" && *dbname != "" {
+        imdb.InitImdb(*key)
+        initDb(*user, *password, *dbname)
+    } else {
+        execUsage()
+        return
+    }
+
     router := mux.NewRouter()
-    router.HandleFunc("/", usage)
+    router.HandleFunc("/", serverUsage)
     router.HandleFunc("/login", login)
     router.HandleFunc("/logout", logout)
     router.HandleFunc("/register", register)
     router.HandleFunc("/search", search)
     router.HandleFunc("/idsearch", idSearch)
-    log.Fatal(http.ListenAndServe(":8080", router))
+    addr := ":" + strconv.Itoa(*port)
+    c.LogD.Printf("Start on: %v\n", addr)
+    log.Fatal(http.ListenAndServe(addr, router))
 }
