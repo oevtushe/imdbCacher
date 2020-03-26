@@ -1,7 +1,5 @@
 package imdb
 
-// TODO: use pointers instead raw copy
-
 import (
     "errors"
     "net/url"
@@ -30,7 +28,6 @@ func InitImdb(key string) {
     xRapidApiKey = key
 }
 
-// TODO: host and key should be read as program parameter
 func sendReq(url string) ([]byte, error) {
     req, err := http.NewRequest("GET", url, nil)
 
