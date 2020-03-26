@@ -6,7 +6,7 @@ You request a detailed information about some movie, server gives it to you by l
 You request a detailed information about movie you requested before, server gives it to you by loading from local db.
 
 ### Requirements
-- Configured PostgreSQL (1 user with password and db at least)
+- Configured PostgreSQL (1 user with password and db at least), service must be running on default postgresql port (5432)
 
 ## Hot to run
 
