@@ -15,8 +15,8 @@ import (
     "github.com/gorilla/sessions"
     "github.com/gorilla/securecookie"
 
-    "megatask/imdb"
-    c "megatask/common"
+    "imdbCacher/imdb"
+    c "imdbCacher/common"
 )
 
 type Movie struct {
@@ -303,7 +303,7 @@ func init() {
 }
 
 func execUsage() {
-    fmt.Printf("go run megatask/server -key <key> -user <name> " +
+    fmt.Printf("go run imdbCacher/server -key <key> -user <name> " +
             "-password <pass> -dbname <name> [-port <num>]\n")
     flag.PrintDefaults()
 }

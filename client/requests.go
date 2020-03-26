@@ -10,7 +10,7 @@ import (
     "io/ioutil"
     "encoding/json"
 
-    c "megatask/common"
+    c "imdbCacher/common"
 )
 
 const (

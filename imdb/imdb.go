@@ -7,7 +7,7 @@ import (
     "io/ioutil"
     "encoding/json"
 
-    "megatask/common"
+    "imdbCacher/common"
 )
 
 // PUBLIC

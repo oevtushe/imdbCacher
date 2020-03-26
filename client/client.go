@@ -9,7 +9,7 @@ import (
     "io/ioutil"
     "encoding/json"
 
-    c "megatask/common"
+    c "imdbCacher/common"
 )
 
 func parseSearchReq(data []byte) error {
@@ -150,10 +150,10 @@ func logout(mservUrl *url.URL) {
 }
 
 func usage() {
-    fmt.Printf("usage: go run megatask/client -login|register " +
+    fmt.Printf("usage: go run imdbCacher/client -login|register " +
             "-user <username> -password <pass> [-port <num>]\n" +
-            "go run megatask/client -search <movie title> [-port <num>]\n" +
-            "go run megatask/client -id <movie id> [-port <num>]\n")
+            "go run imdbCacher/client -search <movie title> [-port <num>]\n" +
+            "go run imdbCacher/client -id <movie id> [-port <num>]\n")
     flag.PrintDefaults()
 }
 

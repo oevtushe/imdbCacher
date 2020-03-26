@@ -11,7 +11,7 @@ import (
     "database/sql"
     "github.com/lib/pq"
 
-    "megatask/common"
+    "imdbCacher/common"
 )
 
 // PUBLIC
