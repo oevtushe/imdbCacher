@@ -24,7 +24,7 @@ const (
 const cookieFileName = "mdb_cookie"
 
 func sendGet(url string, cookie *http.Cookie) ([]byte, []*http.Cookie, error) {
-	req, err := http.NewRequest("GET", url, nil)
+    req, err := http.NewRequest("GET", url, nil)
 
     if err != nil {
         return nil, nil, err
@@ -37,8 +37,8 @@ func sendGet(url string, cookie *http.Cookie) ([]byte, []*http.Cookie, error) {
         return nil, nil, err
     }
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+    defer resp.Body.Close()
+    body, err := ioutil.ReadAll(resp.Body)
 
     if err != nil {
         return nil, nil, err
@@ -59,8 +59,8 @@ func sendPost(js []byte, address *url.URL) ([]*http.Cookie, error) {
         return nil, err
     }
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+    defer resp.Body.Close()
+    body, err := ioutil.ReadAll(resp.Body)
 
     if err != nil {
         return nil, err

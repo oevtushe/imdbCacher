@@ -5,8 +5,8 @@ package imdb
 import (
     "errors"
     "net/url"
-	"net/http"
-	"io/ioutil"
+    "net/http"
+    "io/ioutil"
     "encoding/json"
 
     "megatask/common"
@@ -32,23 +32,23 @@ func InitImdb(key string) {
 
 // TODO: host and key should be read as program parameter
 func sendReq(url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+    req, err := http.NewRequest("GET", url, nil)
 
     if err != nil {
         return nil, err
     }
 
-	req.Header.Add("x-rapidapi-host", "movie-database-imdb-alternative.p.rapidapi.com")
-	req.Header.Add("x-rapidapi-key", xRapidApiKey)
+    req.Header.Add("x-rapidapi-host", "movie-database-imdb-alternative.p.rapidapi.com")
+    req.Header.Add("x-rapidapi-key", xRapidApiKey)
 
-	res, err := http.DefaultClient.Do(req)
+    res, err := http.DefaultClient.Do(req)
 
     if err != nil {
         return nil, err
     }
 
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
+    defer res.Body.Close()
+    body, err := ioutil.ReadAll(res.Body)
 
     if err != nil {
         return nil, err
