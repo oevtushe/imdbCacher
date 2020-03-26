@@ -10,6 +10,60 @@ import (
     "megatask/common"
 )
 
+// PUBLIC
+func InitImdb(key string) {
+    xRapidApiKey = key
+}
+
+func SendSearchReq(searchStr string) ([]common.Movie, error) {
+    imdbUrl, err := url.Parse(imdbUrlStr)
+
+    if err != nil {
+        return nil, err
+    }
+
+    q := imdbUrl.Query()
+    q.Add("r", "json")
+    q.Add("s", searchStr)
+    imdbUrl.RawQuery = q.Encode()
+    rawResp, err := sendReq(imdbUrl.String())
+
+    if err != nil {
+        return nil, err
+    }
+
+    return parseSearchReq(rawResp)
+}
+
+func SendIdReq(id string) (*common.MovieExtraInfo, error) {
+    imdbUrl, err := url.Parse(imdbUrlStr)
+
+    if err != nil {
+        return nil, err
+    }
+
+    q := imdbUrl.Query()
+    q.Add("r", "json")
+    q.Add("i", id)
+    imdbUrl.RawQuery = q.Encode()
+    rawResp, err := sendReq(imdbUrl.String())
+
+    if err != nil {
+        return nil, err
+    }
+
+    res, err := parseIdReq(rawResp)
+
+    if err != nil {
+        return nil, err
+    }
+
+    cp := res.MovieExtraInfo
+
+    return &cp, err
+}
+
+// PRIVATE
 var xRapidApiKey string
 const imdbUrlStr = "https://movie-database-imdb-alternative.p.rapidapi.com/"
 
@@ -22,10 +76,6 @@ type searchResp struct {
     Search []common.Movie
     TotalResults int `json:",string"`
     Response string
-}
-
-func InitImdb(key string) {
-    xRapidApiKey = key
 }
 
 func sendReq(url string) ([]byte, error) {
@@ -86,52 +136,4 @@ func parseIdReq(data []byte) (*idResp, error) {
     }
 
     return &ir, err
-}
-
-func SendSearchReq(searchStr string) ([]common.Movie, error) {
-    imdbUrl, err := url.Parse(imdbUrlStr)
-
-    if err != nil {
-        return nil, err
-    }
-
-    q := imdbUrl.Query()
-    q.Add("r", "json")
-    q.Add("s", searchStr)
-    imdbUrl.RawQuery = q.Encode()
-    rawResp, err := sendReq(imdbUrl.String())
-
-    if err != nil {
-        return nil, err
-    }
-
-    return parseSearchReq(rawResp)
-}
-
-func SendIdReq(id string) (*common.MovieExtraInfo, error) {
-    imdbUrl, err := url.Parse(imdbUrlStr)
-
-    if err != nil {
-        return nil, err
-    }
-
-    q := imdbUrl.Query()
-    q.Add("r", "json")
-    q.Add("i", id)
-    imdbUrl.RawQuery = q.Encode()
-    rawResp, err := sendReq(imdbUrl.String())
-
-    if err != nil {
-        return nil, err
-    }
-
-    res, err := parseIdReq(rawResp)
-
-    if err != nil {
-        return nil, err
-    }
-
-    cp := res.MovieExtraInfo
-
-    return &cp, err
 }
